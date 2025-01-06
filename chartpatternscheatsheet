@@ -1,0 +1,113 @@
+import yfinance as yf
+import pandas as pd
+
+# List of crypto pairs to analyze
+crypto_pairs = [
+    "BTC-USD", "XRP-USD", "ETH-USD", "HBAR-USD", "AAVE-USD", "LINK-USD", "LTC-USD",
+    "JASMY-USD", "AVAX-USD", "OP-USD", "ALGO-USD", "ICP-USD", "ONDO-USD", "SEI-USD"
+]
+
+# Function to calculate and print the analysis for each crypto
+def analyze_crypto(ticker_symbol):
+    # Fetch historical data for each crypto pair
+    stock = yf.Ticker(ticker_symbol)
+    data = stock.history(period="1d", interval="1m")  # 1-minute data for the last day
+
+    # Calculate EMA
+    data['EMA'] = data['Close'].ewm(span=14, adjust=False).mean()
+
+    # Calculate MA
+    data['MA'] = data['Close'].rolling(window=14).mean()
+
+    # Calculate SMMA
+    data['SMMA'] = data['Close'].ewm(alpha=1/14, adjust=False).mean()
+
+    # Calculate RSI
+    delta = data['Close'].diff()
+    gain = delta.where(delta > 0, 0).rolling(window=14).mean()
+    loss = (-delta).where(delta < 0, 0).rolling(window=14).mean()
+    rs = gain / loss
+    data['RSI'] = 100 - (100 / (1 + rs))
+
+    # Calculate Bollinger Bands
+    data['Middle_Band'] = data['Close'].rolling(window=20).mean()
+    data['Upper_Band'] = data['Middle_Band'] + 2 * data['Close'].rolling(window=20).std()
+    data['Lower_Band'] = data['Middle_Band'] - 2 * data['Close'].rolling(window=20).std()
+
+    # Calculate MACD
+    macd_line = data['Close'].ewm(span=12, adjust=False).mean() - data['Close'].ewm(span=26, adjust=False).mean()
+    signal_line = macd_line.ewm(span=9, adjust=False).mean()
+    data['MACD_Line'] = macd_line
+    data['Signal_Line'] = signal_line
+    data['MACD_Histogram'] = macd_line - signal_line
+
+    # Calculate OBV (On-Balance Volume)
+    obv = [0]
+    for i in range(1, len(data)):
+        if data['Close'].iloc[i] > data['Close'].iloc[i - 1]:
+            obv.append(obv[-1] + data['Volume'].iloc[i])
+        elif data['Close'].iloc[i] < data['Close'].iloc[i - 1]:
+            obv.append(obv[-1] - data['Volume'].iloc[i])
+        else:
+            obv.append(obv[-1])
+    data['OBV'] = pd.Series(obv, index=data.index)
+
+    # Calculate Stochastic Oscillator (%K)
+    high_14 = data['High'].rolling(window=14).max()
+    low_14 = data['Low'].rolling(window=14).min()
+    data['Stochastic_K'] = ((data['Close'] - low_14) / (high_14 - low_14)) * 100
+
+    # Calculate Golden and Death Crossovers
+    data['Golden_Crossover'] = data['EMA'] > data['MA']
+    data['Death_Crossover'] = data['EMA'] < data['MA']
+
+    # Calculate Fibonacci Retracement Levels
+    high = data['Close'].max()
+    low = data['Close'].min()
+    diff = high - low
+    fib_23_6 = high - 0.236 * diff
+    fib_38_2 = high - 0.382 * diff
+    fib_50 = high - 0.5 * diff
+    fib_61_8 = high - 0.618 * diff
+
+    # Calculate Stop Loss and Take Profit
+    current_price = data['Close'].iloc[-1]
+    buffer = 0.02  # 2% buffer
+    stop_loss = fib_23_6 - (fib_23_6 * buffer)
+    take_profit = fib_61_8 + (fib_61_8 * buffer)
+
+    # Generate Buy/Sell Signals
+    buy_signal = (
+        (data['RSI'].iloc[-1] < 30) and
+        (data['MACD_Line'].iloc[-1] > data['Signal_Line'].iloc[-1]) and
+        (current_price > data['Middle_Band'].iloc[-1]) and
+        (data['Stochastic_K'].iloc[-1] < 20) and
+        (data['Golden_Crossover'].iloc[-1])
+    )
+    sell_signal = (
+        (data['RSI'].iloc[-1] > 70) and
+        (data['MACD_Line'].iloc[-1] < data['Signal_Line'].iloc[-1]) and
+        (current_price < data['Middle_Band'].iloc[-1]) and
+        (data['Stochastic_K'].iloc[-1] > 80) and
+        (data['Death_Crossover'].iloc[-1])
+    )
+
+    # Print the results
+    print(f"\nCrypto Pair: {ticker_symbol}")
+    print(f"Latest Price: {current_price:.4f}")
+    print(f"Latest EMA: {data['EMA'].iloc[-1]:.4f}")
+    print(f"Latest MA: {data['MA'].iloc[-1]:.4f}")
+    print(f"Latest RSI: {data['RSI'].iloc[-1]:.2f}")
+    print(f"Fibonacci Levels: 23.6%: {fib_23_6:.4f}, 38.2%: {fib_38_2:.4f}, 50.0%: {fib_50:.4f}, 61.8%: {fib_61_8:.4f}")
+    print(f"Stop Loss: {stop_loss:.4f}, Take Profit: {take_profit:.4f}")
+
+    if buy_signal:
+        print("Buy Signal: The market shows a potential upward trend.")
+    elif sell_signal:
+        print("Sell Signal: The market may be overbought, suggesting a bearish trend.")
+    else:
+        print("No strong signals detected.")
+
+# Loop through each crypto pair and analyze
+for crypto_pair in crypto_pairs:
+    analyze_crypto(crypto_pair)
