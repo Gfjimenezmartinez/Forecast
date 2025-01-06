@@ -1,0 +1,62 @@
+# Load necessary libraries
+library(quantmod)    # For downloading financial data
+library(TTR)         # For technical indicators
+library(forecast)    # For ARIMA and time series forecasting
+library(xts)         # For handling time series data
+
+# Step 1: Fetch Bitcoin data from Yahoo Finance (from 2010)
+#getSymbols("BTC-USD", src = "yahoo", from = "2024-01-01", to = Sys.Date())
+getSymbols("BTC-USD", src = "yahoo", from = "2016-07-17", to = Sys.Date())
+# Step 2: Examine the data structure
+head(`BTC-USD`)  # Display the first few rows of the data
+
+# Step 3: Logarithmic Returns for smoother trend analysis
+log_returns <- diff(log(Cl(`BTC-USD`)))  # Logarithmic return
+
+# Step 4: Fit an ARIMA model automatically
+# We will use the auto.arima() function to choose the best ARIMA model for the data
+btc_data <- Cl(`BTC-USD`)  # Use closing prices for the ARIMA model
+
+# Automatically fit an ARIMA model to the Bitcoin data (auto model selection)
+arima_model <- auto.arima(btc_data)
+
+# Step 5: Predict Bitcoin prices for the next 1 day, 1 week, and 1 month (future horizons)
+# Forecast for 1 day ahead (next day prediction)
+forecast_day <- forecast(arima_model, h = 1)
+
+# Forecast for 1 week ahead (7 days prediction)
+forecast_week <- forecast(arima_model, h = 7)
+
+# Forecast for 1 month ahead (30 days prediction)
+forecast_month <- forecast(arima_model, h = 30)
+
+# Step 6: Display and plot predictions
+cat("Prediction for the next day: ", forecast_day$mean, "\n")
+cat("Prediction for the next week: ", forecast_week$mean, "\n")
+cat("Prediction for the next month: ", forecast_month$mean, "\n")
+
+# Step 7: Confidence Intervals
+cat("\nConfidence intervals for the next day prediction:\n")
+print(forecast_day$lower)
+print(forecast_day$upper)
+
+cat("\nConfidence intervals for the next week prediction:\n")
+print(forecast_week$lower)
+print(forecast_week$upper)
+
+cat("\nConfidence intervals for the next month prediction:\n")
+print(forecast_month$lower)
+print(forecast_month$upper)
+
+# Step 8: Plot the forecasts and the confidence intervals
+par(mfrow = c(3, 1))  # Set up multiple plots
+
+# Plot forecast for next day
+plot(forecast_day, main = "Bitcoin Price Forecast for Next Day", col = "blue")
+
+# Plot forecast for next week
+plot(forecast_week, main = "Bitcoin Price Forecast for Next Week", col = "green")
+
+# Plot forecast for next month
+plot(forecast_month, main = "Bitcoin Price Forecast for Next Month", col = "red")
+
