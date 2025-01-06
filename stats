@@ -1,0 +1,72 @@
+# Load necessary libraries
+library(quantmod)    # For downloading financial data
+library(timeDate)    # For time series manipulation
+library(TTR)         # For technical indicators
+
+# Step 1: Fetch Bitcoin data from Yahoo Finance (from 2010)
+getSymbols("BTC-USD", src = "yahoo", from = "2024-01-01", to = Sys.Date())
+
+# Step 2: Examine the data structure
+head(`BTC-USD`)  # Display the first few rows of the data
+
+# Step 3: Calculate Logarithmic Returns for smoother trend analysis
+log_returns <- diff(log(Cl(`BTC-USD`)))  # Logarithmic return
+
+# Step 4: Create a custom metric (e.g., Cumulative Daily Difference)
+# Adjusting the threshold to a more appropriate value (e.g., $10,000)
+threshold <- 10000
+CDD <- rep(0, length(index(`BTC-USD`)))  # Initialize the CDD vector
+
+# Calculate daily differences for the closing price (use a threshold of 10,000 USD here)
+for (i in 2:length(CDD)) {
+  CDD[i] <- pmax(Cl(`BTC-USD`)[i] - threshold, 0)  # Difference from 10,000 USD threshold
+}
+
+# Step 5: Compute the mean of the CDD values (this will be used as K)
+K <- mean(CDD)
+K
+
+# Step 6: Perform linear regression using years and the CDD metric
+years <- as.numeric(format(index(`BTC-USD`), "%Y"))  # Extract years from the index
+BTC.est <- lm(CDD ~ years)  # Perform linear regression
+
+# Step 7: Plot the regression line and data points
+plot(years, CDD, main="Bitcoin CDD vs Year", xlab="Year", ylab="CDD")
+abline(BTC.est, col="blue")
+
+# Step 8: Prediction for a future year (e.g., 2025)
+Pred.opt.2025 <- predict(BTC.est, newdata = data.frame(years = 2025))
+Pred.opt.2025
+
+# Step 9: Calculate the prediction interval
+Xbar <- mean(years)  # Mean of the years
+Sigma_hat <- sqrt(sum(residuals(BTC.est)^2) / (length(years) - 2))  # Standard deviation estimate
+CSigma_hat <- Sigma_hat * sqrt( (length(years)+1) / length(years) + ((2025 - Xbar)^2) / sum((years - Xbar)^2))
+
+# Step 10: Compute the confidence interval for 2025
+Conf.Int.Lower <- Pred.opt.2025 - qt(1 - 0.05 / 2, length(years) - 2) * CSigma_hat
+Conf.Int.Higher <- Pred.opt.2025 + qt(1 - 0.05 / 2, length(years) - 2) * CSigma_hat
+
+# Adjusting the lower bound to prevent negative prices
+Conf.Int.Lower <- max(0, Conf.Int.Lower)  # Ensure price doesn't go below zero
+
+# Step 11: Print the confidence interval
+cat("Confidence Interval for 2025 Prediction:\n")
+cat("Lower Bound:", Conf.Int.Lower, "\n")
+cat("Upper Bound:", Conf.Int.Higher, "\n")
+
+# Step 12: Probability using normal distribution
+pHAT <- pnorm((Pred.opt.2025 - K) / Sigma_hat)  # Probability using normal distribution
+cat("Probability using normal distribution:", pHAT, "\n")
+
+# Step 13: t-distribution probability
+pHAT_t <- pt((Pred.opt.2025 - K) / Sigma_hat, df = length(years) - 2)  # t-distribution probability
+cat("Probability using t-distribution:", pHAT_t, "\n")
+
+# Step 14: Identify Supercycles (example using simple moving averages)
+# Calculate the 200-day moving average to capture longer cycles
+SMA200 <- SMA(Cl(`BTC-USD`), n = 200)  # 200-day simple moving average
+
+# Plot price vs 200-day SMA to identify long-term cycles
+plot(Cl(`BTC-USD`), main="Bitcoin Price and 200-day SMA", col="black", lwd=2)
+lines(SMA200, col="blue", lwd=2)  # Overlay the 200-day SMA
